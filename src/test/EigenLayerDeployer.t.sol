@@ -25,7 +25,6 @@ import "../contracts/pods/BeaconChainOracle.sol";
 
 import "../contracts/permissions/PauserRegistry.sol";
 
-
 import "./utils/Operators.sol";
 
 import "./mocks/LiquidStakingToken.sol";
@@ -35,7 +34,6 @@ import "./mocks/ETHDepositMock.sol";
 import "forge-std/Test.sol";
 
 contract EigenLayerDeployer is Operators {
-
     Vm cheats = Vm(HEVM_ADDRESS);
 
     // EigenLayer contracts
@@ -63,8 +61,10 @@ contract EigenLayerDeployer is Operators {
     mapping(uint256 => IStrategy) public strategies;
 
     //from testing seed phrase
-    bytes32 priv_key_0 = 0x1234567812345678123456781234567812345678123456781234567812345678;
-    bytes32 priv_key_1 = 0x1234567812345678123456781234567812345698123456781234567812348976;
+    bytes32 priv_key_0 =
+        0x1234567812345678123456781234567812345678123456781234567812345678;
+    bytes32 priv_key_1 =
+        0x1234567812345678123456781234567812345698123456781234567812348976;
 
     //strategy indexes for undelegation (see commitUndelegation function)
     uint256[] public strategyIndexes;
@@ -106,15 +106,15 @@ contract EigenLayerDeployer is Operators {
     address operationsMultisig;
     address executorMultisig;
 
-
     uint256 public initialBeaconChainOracleThreshold = 3;
 
-    string internal goerliDeploymentConfig = vm.readFile("script/output/M1_deployment_goerli_2023_3_23.json");
-
+    string internal goerliDeploymentConfig =
+        vm.readFile(
+            "lib/eigenlayer-contracts/script/output/M1_deployment_goerli_2023_3_23.json"
+        );
 
     // addresses excluded from fuzzing due to abnormal behavior. TODO: @Sidu28 define this better and give it a clearer name
-    mapping (address => bool) fuzzedAddressMapping;
-
+    mapping(address => bool) fuzzedAddressMapping;
 
     //ensures that a passed in address is not set to true in the fuzzedAddressMapping
     modifier fuzzedAddress(address addr) virtual {
@@ -123,17 +123,18 @@ contract EigenLayerDeployer is Operators {
     }
 
     modifier cannotReinit() {
-        cheats.expectRevert(bytes("Initializable: contract is already initialized"));
+        cheats.expectRevert(
+            bytes("Initializable: contract is already initialized")
+        );
         _;
     }
 
     //performs basic deployment before each test
     // for fork tests run:  forge test -vv --fork-url https://eth-goerli.g.alchemy.com/v2/demo   -vv
     function setUp() public virtual {
-        if(vm.envUint("CHAIN_ID") == 31337) {
+        if (vm.envUint("CHAIN_ID") == 31337) {
             _deployEigenLayerContractsLocal();
-
-        }else if(vm.envUint("CHAIN_ID") == 5) {
+        } else if (vm.envUint("CHAIN_ID") == 5) {
             _deployEigenLayerContractsGoerli();
         }
 
@@ -153,7 +154,7 @@ contract EigenLayerDeployer is Operators {
         eigenLayerProxyAdmin = ProxyAdmin(eigenLayerProxyAdminAddress);
 
         emptyContract = new EmptyContract();
-        
+
         //deploy pauser registry
         eigenLayerPauserReg = PauserRegistry(eigenLayerPauserRegAddress);
 
@@ -161,17 +162,27 @@ contract EigenLayerDeployer is Operators {
         strategyManager = StrategyManager(strategyManagerAddress);
         slasher = Slasher(slasherAddress);
         eigenPodManager = EigenPodManager(eigenPodManagerAddress);
-        delayedWithdrawalRouter = DelayedWithdrawalRouter(delayedWithdrawalRouterAddress);
+        delayedWithdrawalRouter = DelayedWithdrawalRouter(
+            delayedWithdrawalRouterAddress
+        );
 
         address[] memory initialOracleSignersArray = new address[](0);
-        beaconChainOracle = new BeaconChainOracle(eigenLayerReputedMultisig, initialBeaconChainOracleThreshold, initialOracleSignersArray);
+        beaconChainOracle = new BeaconChainOracle(
+            eigenLayerReputedMultisig,
+            initialBeaconChainOracleThreshold,
+            initialOracleSignersArray
+        );
 
         ethPOSDeposit = new ETHPOSDepositMock();
-        pod = new EigenPod(ethPOSDeposit, delayedWithdrawalRouter, eigenPodManager, MAX_VALIDATOR_BALANCE_GWEI, EFFECTIVE_RESTAKED_BALANCE_OFFSET);
+        pod = new EigenPod(
+            ethPOSDeposit,
+            delayedWithdrawalRouter,
+            eigenPodManager,
+            MAX_VALIDATOR_BALANCE_GWEI,
+            EFFECTIVE_RESTAKED_BALANCE_OFFSET
+        );
 
         eigenPodBeacon = new UpgradeableBeacon(address(pod));
-
-
 
         //simple ERC20 (**NOT** WETH-like!), used in a test strategy
         weth = new ERC20PresetFixedSupply(
@@ -188,7 +199,11 @@ contract EigenLayerDeployer is Operators {
                 new TransparentUpgradeableProxy(
                     address(baseStrategyImplementation),
                     address(eigenLayerProxyAdmin),
-                    abi.encodeWithSelector(StrategyBase.initialize.selector, weth, eigenLayerPauserReg)
+                    abi.encodeWithSelector(
+                        StrategyBase.initialize.selector,
+                        weth,
+                        eigenLayerPauserReg
+                    )
                 )
             )
         );
@@ -206,7 +221,11 @@ contract EigenLayerDeployer is Operators {
                 new TransparentUpgradeableProxy(
                     address(baseStrategyImplementation),
                     address(eigenLayerProxyAdmin),
-                    abi.encodeWithSelector(StrategyBase.initialize.selector, eigenToken, eigenLayerPauserReg)
+                    abi.encodeWithSelector(
+                        StrategyBase.initialize.selector,
+                        eigenToken,
+                        eigenLayerPauserReg
+                    )
                 )
             )
         );
@@ -231,35 +250,92 @@ contract EigenLayerDeployer is Operators {
          */
         emptyContract = new EmptyContract();
         delegation = DelegationManager(
-            address(new TransparentUpgradeableProxy(address(emptyContract), address(eigenLayerProxyAdmin), ""))
+            address(
+                new TransparentUpgradeableProxy(
+                    address(emptyContract),
+                    address(eigenLayerProxyAdmin),
+                    ""
+                )
+            )
         );
         strategyManager = StrategyManager(
-            address(new TransparentUpgradeableProxy(address(emptyContract), address(eigenLayerProxyAdmin), ""))
+            address(
+                new TransparentUpgradeableProxy(
+                    address(emptyContract),
+                    address(eigenLayerProxyAdmin),
+                    ""
+                )
+            )
         );
         slasher = Slasher(
-            address(new TransparentUpgradeableProxy(address(emptyContract), address(eigenLayerProxyAdmin), ""))
+            address(
+                new TransparentUpgradeableProxy(
+                    address(emptyContract),
+                    address(eigenLayerProxyAdmin),
+                    ""
+                )
+            )
         );
         eigenPodManager = EigenPodManager(
-            address(new TransparentUpgradeableProxy(address(emptyContract), address(eigenLayerProxyAdmin), ""))
+            address(
+                new TransparentUpgradeableProxy(
+                    address(emptyContract),
+                    address(eigenLayerProxyAdmin),
+                    ""
+                )
+            )
         );
         delayedWithdrawalRouter = DelayedWithdrawalRouter(
-            address(new TransparentUpgradeableProxy(address(emptyContract), address(eigenLayerProxyAdmin), ""))
+            address(
+                new TransparentUpgradeableProxy(
+                    address(emptyContract),
+                    address(eigenLayerProxyAdmin),
+                    ""
+                )
+            )
         );
 
         address[] memory initialOracleSignersArray = new address[](0);
-        beaconChainOracle = new BeaconChainOracle(eigenLayerReputedMultisig, initialBeaconChainOracleThreshold, initialOracleSignersArray);
+        beaconChainOracle = new BeaconChainOracle(
+            eigenLayerReputedMultisig,
+            initialBeaconChainOracleThreshold,
+            initialOracleSignersArray
+        );
 
         ethPOSDeposit = new ETHPOSDepositMock();
-        pod = new EigenPod(ethPOSDeposit, delayedWithdrawalRouter, eigenPodManager, MAX_VALIDATOR_BALANCE_GWEI, EFFECTIVE_RESTAKED_BALANCE_OFFSET);
+        pod = new EigenPod(
+            ethPOSDeposit,
+            delayedWithdrawalRouter,
+            eigenPodManager,
+            MAX_VALIDATOR_BALANCE_GWEI,
+            EFFECTIVE_RESTAKED_BALANCE_OFFSET
+        );
 
         eigenPodBeacon = new UpgradeableBeacon(address(pod));
 
         // Second, deploy the *implementation* contracts, using the *proxy contracts* as inputs
-        DelegationManager delegationImplementation = new DelegationManager(strategyManager, slasher);
-        StrategyManager strategyManagerImplementation = new StrategyManager(delegation, eigenPodManager, slasher);
-        Slasher slasherImplementation = new Slasher(strategyManager, delegation);
-        EigenPodManager eigenPodManagerImplementation = new EigenPodManager(ethPOSDeposit, eigenPodBeacon, strategyManager, slasher);
-        DelayedWithdrawalRouter delayedWithdrawalRouterImplementation = new DelayedWithdrawalRouter(eigenPodManager);
+        DelegationManager delegationImplementation = new DelegationManager(
+            strategyManager,
+            slasher
+        );
+        StrategyManager strategyManagerImplementation = new StrategyManager(
+            delegation,
+            eigenPodManager,
+            slasher
+        );
+        Slasher slasherImplementation = new Slasher(
+            strategyManager,
+            delegation
+        );
+        EigenPodManager eigenPodManagerImplementation = new EigenPodManager(
+            ethPOSDeposit,
+            eigenPodBeacon,
+            strategyManager,
+            slasher
+        );
+        DelayedWithdrawalRouter delayedWithdrawalRouterImplementation = new DelayedWithdrawalRouter(
+                eigenPodManager
+            );
 
         // Third, upgrade the proxy contracts to use the correct implementation contracts and initialize them.
         eigenLayerProxyAdmin.upgradeAndCall(
@@ -269,7 +345,7 @@ contract EigenLayerDeployer is Operators {
                 DelegationManager.initialize.selector,
                 eigenLayerReputedMultisig,
                 eigenLayerPauserReg,
-                0/*initialPausedStatus*/
+                0 /*initialPausedStatus*/
             )
         );
         eigenLayerProxyAdmin.upgradeAndCall(
@@ -280,8 +356,8 @@ contract EigenLayerDeployer is Operators {
                 eigenLayerReputedMultisig,
                 eigenLayerReputedMultisig,
                 eigenLayerPauserReg,
-                0/*initialPausedStatus*/,
-                0/*withdrawalDelayBlocks*/
+                0 /*initialPausedStatus*/,
+                0 /*withdrawalDelayBlocks*/
             )
         );
         eigenLayerProxyAdmin.upgradeAndCall(
@@ -291,7 +367,7 @@ contract EigenLayerDeployer is Operators {
                 Slasher.initialize.selector,
                 eigenLayerReputedMultisig,
                 eigenLayerPauserReg,
-                0/*initialPausedStatus*/
+                0 /*initialPausedStatus*/
             )
         );
         eigenLayerProxyAdmin.upgradeAndCall(
@@ -303,19 +379,23 @@ contract EigenLayerDeployer is Operators {
                 beaconChainOracle,
                 eigenLayerReputedMultisig,
                 eigenLayerPauserReg,
-                0/*initialPausedStatus*/
+                0 /*initialPausedStatus*/
             )
         );
         uint256 initPausedStatus = 0;
         uint256 withdrawalDelayBlocks = PARTIAL_WITHDRAWAL_FRAUD_PROOF_PERIOD_BLOCKS;
         eigenLayerProxyAdmin.upgradeAndCall(
-            TransparentUpgradeableProxy(payable(address(delayedWithdrawalRouter))),
+            TransparentUpgradeableProxy(
+                payable(address(delayedWithdrawalRouter))
+            ),
             address(delayedWithdrawalRouterImplementation),
-            abi.encodeWithSelector(DelayedWithdrawalRouter.initialize.selector,
-            eigenLayerReputedMultisig,
-            eigenLayerPauserReg,
-            initPausedStatus,
-            withdrawalDelayBlocks)
+            abi.encodeWithSelector(
+                DelayedWithdrawalRouter.initialize.selector,
+                eigenLayerReputedMultisig,
+                eigenLayerPauserReg,
+                initPausedStatus,
+                withdrawalDelayBlocks
+            )
         );
 
         //simple ERC20 (**NOT** WETH-like!), used in a test strategy
@@ -333,7 +413,11 @@ contract EigenLayerDeployer is Operators {
                 new TransparentUpgradeableProxy(
                     address(baseStrategyImplementation),
                     address(eigenLayerProxyAdmin),
-                    abi.encodeWithSelector(StrategyBase.initialize.selector, weth, eigenLayerPauserReg)
+                    abi.encodeWithSelector(
+                        StrategyBase.initialize.selector,
+                        weth,
+                        eigenLayerPauserReg
+                    )
                 )
             )
         );
@@ -351,7 +435,11 @@ contract EigenLayerDeployer is Operators {
                 new TransparentUpgradeableProxy(
                     address(baseStrategyImplementation),
                     address(eigenLayerProxyAdmin),
-                    abi.encodeWithSelector(StrategyBase.initialize.selector, eigenToken, eigenLayerPauserReg)
+                    abi.encodeWithSelector(
+                        StrategyBase.initialize.selector,
+                        eigenToken,
+                        eigenLayerPauserReg
+                    )
                 )
             )
         );
@@ -360,16 +448,42 @@ contract EigenLayerDeployer is Operators {
     }
 
     function _setAddresses(string memory config) internal {
-        eigenLayerProxyAdminAddress = stdJson.readAddress(config, ".addresses.eigenLayerProxyAdmin");   
-        eigenLayerPauserRegAddress = stdJson.readAddress(config, ".addresses.eigenLayerPauserReg");
-        delegationAddress = stdJson.readAddress(config, ".addresses.delegation");
-        strategyManagerAddress = stdJson.readAddress(config, ".addresses.strategyManager");
+        eigenLayerProxyAdminAddress = stdJson.readAddress(
+            config,
+            ".addresses.eigenLayerProxyAdmin"
+        );
+        eigenLayerPauserRegAddress = stdJson.readAddress(
+            config,
+            ".addresses.eigenLayerPauserReg"
+        );
+        delegationAddress = stdJson.readAddress(
+            config,
+            ".addresses.delegation"
+        );
+        strategyManagerAddress = stdJson.readAddress(
+            config,
+            ".addresses.strategyManager"
+        );
         slasherAddress = stdJson.readAddress(config, ".addresses.slasher");
-        eigenPodManagerAddress = stdJson.readAddress(config, ".addresses.eigenPodManager"); 
-        delayedWithdrawalRouterAddress = stdJson.readAddress(config, ".addresses.delayedWithdrawalRouter");
-        emptyContractAddress = stdJson.readAddress(config, ".addresses.emptyContract");
-        operationsMultisig = stdJson.readAddress(config, ".parameters.operationsMultisig");
-        executorMultisig = stdJson.readAddress(config, ".parameters.executorMultisig");
+        eigenPodManagerAddress = stdJson.readAddress(
+            config,
+            ".addresses.eigenPodManager"
+        );
+        delayedWithdrawalRouterAddress = stdJson.readAddress(
+            config,
+            ".addresses.delayedWithdrawalRouter"
+        );
+        emptyContractAddress = stdJson.readAddress(
+            config,
+            ".addresses.emptyContract"
+        );
+        operationsMultisig = stdJson.readAddress(
+            config,
+            ".parameters.operationsMultisig"
+        );
+        executorMultisig = stdJson.readAddress(
+            config,
+            ".parameters.executorMultisig"
+        );
     }
-    
 }
